@@ -1,0 +1,80 @@
+# makefile for gnu/cygwin make, using msvc compiler,
+# needs environment setup with 'vcvars32.bat' ( from vstudio )
+#
+# author: Willem Hengeveld <itsme@xs4all.nl>
+# web: http://www.xs4all.nl/~itsme/projects/disassemblers/ida/idp-Makefile
+#
+
+idasdk=c:/local/ida620/idasdk
+vc=c:/Program Files/Microsoft Visual Studio 8/VC
+CC=$(vc)/bin/cl.exe
+LD=$(vc)/bin/link.exe
+
+.SUFFIXES:
+.SUFFIXES: .cpp .obj .plw
+
+#   microsoft's headers are loaded with warnings:
+#C4514: 'uint128::uint128' : unreferenced inline function has been removed
+#C4710: function 'int __stdcall getreg(unsigned long,int)' not inlined
+#C4244: '+=' : conversion from 'int' to 'unsigned short', possible loss of data
+#C4242: '=' : conversion from 'int' to 'ushort', possible loss of data
+#C4127: conditional expression is constant
+#C4146: unary minus operator applied to unsigned type, result still unsigned
+#C4820: '__stat64' : '4' bytes padding added after member '__stat64::st_rdev'
+#C4217: member template functions cannot be used for copy-assignment or copy-construction
+#C4668: '_MT' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
+#C4619: #pragma warning : there is no warning number '4284'
+#C4511: copy constructor could not be generated
+#C4512: assignment operator could not generated
+#C4201: nonstandard extension used : nameless struct/union
+
+# disabling them all, to get a more readable compiler output.
+NOWARN=-wd4619 -wd4514 -wd4710 -wd4244 -wd4242 -wd4127 -wd4668 -wd4146 -wd4820 -wd4217 -wd4511 -wd4512 -wd4201
+
+CDEFS=-DWIN32 -D_USRDLL -D__NT__ -D__IDP__ -DMAXSTR=1024
+# for vs2005:
+CDEFS+=-D_SCL_SECURE_NO_WARNINGS -D_SECURE_SCL=0 -D_CRT_SECURE_NO_WARNINGS
+CINCS=-I $(idasdk)/include -I $(BOOST)
+CINCS+=-I "$(vc)/include" -I "$(vc)/platformsdk/include"
+COPTS=-EHsc -GR -Gz -nologo
+
+LDLIBS=-libpath:$(firstword $(wildcard $(idasdk)/libvc.w32 $(idasdk)/lib/vc.w32))  ida.lib
+LDLIBS+=-libpath:"$(vc)/lib" -libpath:"$(vc)/platformsdk/lib"
+LDFLAGS=-nologo -dll -export:PLUGIN
+DEBUG=yes
+ifeq ($(DEBUG),yes)
+LDFLAGS+=/debug
+COPTS+=-Zi
+else
+COPTS+=-O2
+endif
+# msvc 12.00 does not support -Wall yet -> use -W4.
+# msvc 13.10 does support it.
+#
+%.obj: %.cpp
+	@"$(CC)" -c -W4 $(NOWARN) $(COPTS) $(CINCS) $(CDEFS) -Fo$@ $<
+
+all: dbdump.plw
+
+dbdump.plw: pluginreg.obj dumper.obj
+	@"$(LD)" $(LDFLAGS) $(LDLIBS) $^ /out:$@ /map:dbdump.map
+
+pluginreg.obj: pluginreg.cpp
+dumper.obj: dumper.cpp
+
+clean:
+	-$(RM) $(wildcard *.lib *.exp *.obj *.exe *.dll *.plw *.pdb *.ilk *.map)
+
+install: dbdump.plw
+	@cp dbdump.plw $(idasdk)/../plugins
+	@if ! grep -qw dbdump $(subst \,/,$(idasdk))/../plugins/plugins.cfg; then \
+		echo "" >>$(subst \,/,$(idasdk))/../plugins/plugins.cfg ; \
+		echo "DumpIDC                   dbdump   Alt-2 0" >>$(subst \,/,$(idasdk))/../plugins/plugins.cfg ; \
+		echo "DumpNodes                 dbdump   Alt-3 1" >>$(subst \,/,$(idasdk))/../plugins/plugins.cfg ; \
+	fi
+
+test: install
+	$(idasdk)/../idag.exe testcode/winhello.idb
+
+zip:
+	zip ida-dbdump.zip dumper.h dumper.cpp Makefile pluginreg.cpp README.txt

@@ -1,0 +1,23 @@
+-include ../idacfg.mk
+
+idasdk?=~/sources/idasdk65
+idabin?=/Applications/IDA Pro 6.5/idaq.app/Contents/MacOS
+
+
+CFLAGS=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include
+
+
+
+%.o: %.cpp
+	g++ -m32 -c $(CFLAGS) -Wall -O3 -o$@ $^
+
+all: dbdump.pmc
+
+dbdump.pmc: pluginreg.o dumper.o
+	g++ -dynamiclib -m32 -o $@ $^  "$(idabin)/libida.dylib"
+
+install:
+	cp dbdump.pmc  "$(idabin)/plugins"
+
+clean:
+	$(RM) dbdump.pmc dbdump.o pluginreg.o dumper.o
