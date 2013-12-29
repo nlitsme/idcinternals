@@ -6,8 +6,7 @@ it attempts to investigate the internals of IDA.
 by dumping the RootNode.
 and IDCFuncs
 
-also I figured out how the compiled script functions are encoded,
-a small disassembler for idc functions is provided.
+It can disassemble the internal bytecode representation of IDC scripts.
 dbdump knows how to find the idc compiled code for several ida
 versions, but possibly not for all.
 
