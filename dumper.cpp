@@ -9,7 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "boost/format.hpp"
+#include <boost/format.hpp>
+#include "util/endianutil.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -275,12 +276,14 @@ std::ostream& operator<<(std::ostream& os, netnode& node)
 #else   // idp >= 76
 std::ostream& operator<<(std::ostream& os, netnode& node)
 {
-	char name[MAXNAMESIZE];
+	qstring name;
     char buf[MAXSPECSIZE];
+
+    node.get_name(&name);
 
 	os << boost::format("node %08lx %s %s\n") 
             % ((nodeidx_t)node) 
-            % ascdump((unsigned char*)name, node.name(name, MAXNAMESIZE))
+            % ascdump((const uint8_t*)name.c_str(), name.size())
             % ascdump((unsigned char*)buf, node.valobj(buf, MAXSPECSIZE));
 
     for (int tag= 0 ; tag < 0x100 ; tag++)
@@ -292,6 +295,8 @@ std::ostream& operator<<(std::ostream& os, netnode& node)
         }
 
 	for (int tag=0 ; tag<0x100 ; tag++) {
+
+        // use two alternating buffers for comparing if we are still moving forward with 'H'
 		char idx[2][1024];
         int hs[2];  hs[0]=0; hs[1]=0;
 		int i=0;
@@ -382,10 +387,13 @@ void disassemble(std::ostream&os, const uint8_t *body, int len)
             % ((int)body+i)
             % i
             % ((int)body[i]);
+
+        // nyble and byte must be 'int'  to make boostformat choose the right representation
         int nyble = body[i]&0xf;
         int byte  = (i+1<len)?body[i+1] : 0;
-        int word  = (i+2<len)?(body[i+2]<<8)|body[i+1]:0;
-        int dword = (i+4<len)?(body[i+4]<<24)|(body[i+3]<<16)|(body[i+2]<<8)|body[i+1]:0;
+        uint16_t word  = (i+2<len)?get16le(&body[i+1]):0;
+        uint32_t dword = (i+4<len)?get32le(&body[i+1]):0;
+        uint64_t qword = (i+8<len)?get64le(&body[i+1]):0;
 
         switch(body[i]&0xf0) {
             case 0x00: // call internfunc 00-0f
@@ -760,7 +768,7 @@ void disassemble(std::ostream&os, const uint8_t *body, int len)
                 i+=12;
                 break;
             // 0xd2 is unused
-            case 0xd3: os << boost::format("          ; unknown\n"); break; // todo: figure this one out
+            case 0xd3: os << boost::format(" %09llx; push #%016llx\n") % qword % qword; i+=8; break;
             case 0xd4: os << boost::format(" %02x       ; push global %02x\n") % byte % byte; i+=1; break;
             case 0xd5: os << boost::format(" %04x     ; push global %04x\n") % word % word; i+=2; break;
             case 0xd6: os << boost::format(" %02x       ; pop global %02x\n") % byte % byte; i+=1; break;
@@ -778,7 +786,7 @@ void disassemble(std::ostream&os, const uint8_t *body, int len)
             case 0xdc: os << boost::format(" %02x       ; dec global %02x\n") % byte % byte; i+=1; break;
             case 0xdd: os << boost::format(" %04x     ; dec global %04x\n") % word % word; i+=2; break;
             // case 0xde:  unused
-            case 0xdf: os << "throw"; break;
+            case 0xdf: os << boost::format("          ; throw\n"); break;
             case 0xf0:
                        os << boost::format(" %04x     ; create object %04x\n") % word % word;
                        // todo: decode object type
@@ -973,8 +981,8 @@ void dump_idc_funcs5(std::ostream& os, listinfo5_t *flist)
             % f
             % f->function_name
             % ((int)f->nrparams);
-        disassemble(os, f->body, f->ofs_lastinsn);
         if (f->body) {
+            disassemble(os, f->body, f->ofs_lastinsn);
             os << "extra: ";
             os << hexdump(f->body+f->ofs_lastinsn, f->bodysize-f->ofs_lastinsn);
             os << "\n";
@@ -982,9 +990,21 @@ void dump_idc_funcs5(std::ostream& os, listinfo5_t *flist)
     }
 }
 
+std::string getkernelversion()
+{
+    char kversion[16];
+    if (get_kernel_version(kversion, 16)) 
+    {
+        kversion[15] = 0;
+        return kversion;
+    }
+    return "";
+}
 
 void dump_idc_funcs(std::ostream& os)
 {
+    std::string kernelversion = getkernelversion();
+    
     uint32_t listptr= 0;
     g_type=0;
     switch((uint32_t)&IDCFuncs) {
@@ -1033,7 +1053,21 @@ case 0x005aa8c0: g_type=5; listptr= 0x005b2e0c; break; // ida/mac 6.4
 case 0x005ac8c0: g_type=5; listptr= 0x005b4e0c; break; // ida/mac 6.4.1
 
 case 0x007978c0: g_type=5; listptr= 0x0079f67c; break; // ida/mac 6.5
+case 0x006688c0: g_type=5; listptr= 0x0067067c; break; // ida/mac 6.5.1
+//case 0x0079d8c0: g_type=5; listptr= ; break; // ida/mac 6.5.1+
+case 0x006233c0: g_type=5; listptr= 0x00629260; break; // ida 6.7
+case 0x006453e0: g_type=5; listptr= 0x0064b2c0; break; // ida 6.8
+case 0x006463e0: g_type=5; listptr= 0x0064c2c0; break; // ida 6.8.1
+case 0x006824a0: g_type=5; listptr= 0x006883a0; break; // ida 6.9
+case 0x0068b4a0: g_type=5; listptr= 0x006913c0; break; // ida 6.9.5
+case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
     }
+    uint32_t lowbits_IDCFunc = ((uint32_t)&IDCFuncs)&0xFFF;
+    if (kernelversion == "6.95" && lowbits_IDCFunc == 0x4A0) {
+        g_type = 5;
+        listptr = 0x5F20 + ((uint32_t)&IDCFuncs);
+    }
+
     if (listptr==0) {
         msg("IDCFuncs unknown: %p\n", &IDCFuncs);
         return;
