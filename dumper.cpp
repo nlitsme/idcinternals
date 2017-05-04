@@ -792,15 +792,18 @@ void disassemble(std::ostream&os, const uint8_t *body, int len)
                        // todo: decode object type
                        i+=2;
                        break;
+            // case 0xf1: ...
             case 0xf2: os << boost::format("          ; get object property\n"); break;
             case 0xf4: os << boost::format("          ; set object property\n"); break;
             case 0xf5: os << boost::format("          ; increment object property\n"); break;
-            case 0xf8: os << boost::format("          ; ???object ref???\n"); break;
             case 0xf7: os << boost::format("          ; method call\n"); break;
-            case 0xfe: os << boost::format("          ; get item at\n"); break;
-            case 0xfc: os << boost::format("          ; get slice\n"); break;
+            case 0xf8: os << boost::format("          ; ???object ref???\n"); break;
             case 0xf9: os << boost::format("          ; create reference\n"); break;
+            // 0xfa
             case 0xfb: os << boost::format("          ; set slice\n"); break;
+            case 0xfc: os << boost::format("          ; get slice\n"); break;
+            // 0xfd
+            case 0xfe: os << boost::format("          ; get item at\n"); break;
             case 0xff: os << boost::format("          ; set item at\n"); break;
             default:
                 os << boost::format("            ; ERROR: unused opcode\n");
