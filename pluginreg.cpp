@@ -76,9 +76,10 @@ void idaapi term(void)
 //
 //
 
-void idaapi run(int arg)
+bool idaapi run(size_t arg)  // ida7: bool(size_t), ida6: void(int)
 {
   dump_db(arg);
+  return true;
 }
 
 //--------------------------------------------------------------------------

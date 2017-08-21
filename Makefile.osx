@@ -1,23 +1,30 @@
 -include ../idacfg.mk
-
-idasdk?=~/sources/idasdk65
-idabin?=/Applications/IDA Pro 6.5/idaq.app/Contents/MacOS
-
+IDAVER=7
 
 CFLAGS=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include
 
+ifeq ($(IDAVER),6)
+PMCEXT=.pmc
+ARCHFLAGS=-m32
+endif
 
+ifeq ($(IDAVER),7)
+PMCEXT=.dylib
+ARCHFLAGS=-m64 -D__X64__
+endif
+
+CFLAGS+=$(if $(D),-O0 -g,-O3)
 
 %.o: %.cpp
-	g++ -m32 -c $(CFLAGS) -Wall -O3 -o$@ $^
+	g++ $(CFLAGS) -c $(ARCHFLAGS) -Wall -o$@ $^
 
-all: dbdump.pmc
+all: dbdump$(PMCEXT)
 
-dbdump.pmc: pluginreg.o dumper.o
-	g++ -dynamiclib -m32 -o $@ $^  "$(idabin)/libida.dylib"
+dbdump$(PMCEXT): pluginreg.o dumper.o
+	g++ -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida.dylib"
 
 install:
-	cp dbdump.pmc  "$(idabin)/plugins"
+	cp dbdump$(PMCEXT)  "$(idabin)/plugins"
 
 clean:
-	$(RM) dbdump.pmc dbdump.o pluginreg.o dumper.o
+	$(RM) dbdump$(PMCEXT) dbdump.o pluginreg.o dumper.o

@@ -10,7 +10,6 @@
 #include <vector>
 
 #include <boost/format.hpp>
-#include "util/endianutil.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -25,6 +24,61 @@
 
 #include "expr.hpp"  // for IDCFuncs
 
+#if IDA_SDK_VERSION == 700
+typedef ext_idcfunc_t extfun_t;
+
+struct funcset_t {
+  int qnty;                     ///< Number of functions
+  ext_idcfunc_t *f;                  ///< Function table
+};
+funcset_t *find_idcfuncs()
+{
+    uint64_t *p = (uint64_t*)&callui;
+    uint64_t *pend = (uint64_t*)&ph;
+    p++;
+    while (p<pend && *p==0)
+        p++;
+    uint64_t addr_fnlist = (uint64_t )p;
+
+    while (p<pend) {
+        if (0x100 < *p && *p < 0x1000) {
+            if (p[1]!=addr_fnlist) {
+                msg("expected to find addr list after count %lld\n", p[0]);
+            }
+            break;
+        }
+        if (*p==addr_fnlist) {
+            msg("expected to find count %lld before fnlist\n", p[-1]);
+            p--;
+            break;
+        }
+        p++;
+    }
+    if (p==pend) {
+        msg("could not find fset\n");
+        return nullptr;
+    }
+
+    uint32_t *pd = (uint32_t *)(p+9);
+
+    typedef size_t (*ea2str_fn)(ea_t ea, char *buf, size_t bufsize);
+
+    msg("fnlist = %llx, ea2str = %llx\n", addr_fnlist, (uint64_t)ea2str_fn(ea2str));
+    msg("found idcfuncs @%llx: %lld,  %llx, %llx, %llx, %llx,  %lld,  %llx, %llx, %llx, %d, %d, %d, %d\n",
+            p,  p[0],  p[1], p[2], p[3], p[4],  p[5],  p[6], p[7], p[8],  pd[0], pd[1], pd[2], pd[3]);
+    return (funcset_t*)p;
+}
+
+
+// memlayout:
+// _callui   = sub_...
+// ext_idcfunc_t fnlist[0x1ef] = { { }, ... }
+// funcset_t IDCFuncs { 0x1ef, fnlist, sub, sub, sub, 0, netnode_inited, ea2str, sub, (int)9, 10, 15, 18, 7 }
+//
+
+funcset_t dummyfuncs = {0, nullptr};
+funcset_t &IDCFuncs = dummyfuncs;
+#endif
 
 typedef std::vector<char> CharVector;
 
@@ -74,6 +128,13 @@ typedef struct {
     uint32_t namelen;
     uint32_t name_alloced;
 } srcfile4_t;
+typedef struct __attribute__((packed)) {
+    uint32_t unk0;
+    char *filename;
+    uint64_t namelen;
+    uint64_t name_alloced;
+} srcfile6_t;
+
 typedef struct {
     uint32_t ofs;
     uint32_t linenr;
@@ -97,6 +158,32 @@ typedef struct {
 
 typedef compiled_func4_t compiled_func5_t;
 
+typedef struct {
+    char *function_name;
+    uint64_t namelen;
+    uint64_t name_alloced;
+
+    uint64_t nrparams;
+
+    uint8_t *body;
+    uint64_t bodysize;
+    uint64_t body_alloced;
+
+    uint64_t ofs_lastinsn;
+
+    srcfile6_t *srcfile;
+    uint64_t nsrc;
+    uint64_t src_alloced;
+
+    linenr4_t *lineinfo;
+    uint64_t nlines;
+    uint64_t line_alloced;
+
+    void *unkinfo;
+    uint64_t unkcount;
+    uint64_t unkalloc;
+} compiled_func6_t;
+
 // !!! GLOBAL ... initialized by dump_compiled_functions
 //   used by disassemble, to resolve compiled functions indexes.
 
@@ -109,6 +196,7 @@ compiled_func3_t *g_end3;
 compiled_func4_t *g_flist4;
 compiled_func4_t *g_end4;
 compiled_func5_t **g_flist5;
+compiled_func6_t **g_flist6;
 int g_type=0;
 std::string getcompiledname(int id)
 {
@@ -122,6 +210,8 @@ std::string getcompiledname(int id)
         return g_flist4[id].function_name;
     else if (g_flist5)
         return g_flist5[id]->function_name;
+    else if (g_flist6)
+        return g_flist6[id]->function_name;
     else
         return "unknown!!!";
 }
@@ -342,7 +432,9 @@ std::string functionargs_string(const char *args)
 #ifdef VT_OBJ
             case VT_OBJ:   str += "object"; break;
             case VT_FUNC:  str += "function"; break;
+#ifdef VT_STR2
             case VT_STR2:  str += "string2"; break;
+#endif
             case VT_PVOID: str += "pvoid"; break;
             case VT_INT64: str += "int64"; break;
             case VT_REF:   str += "vref"; break;
@@ -378,13 +470,18 @@ std::string escapestring(const std::string& ascstr)
     return esc;
 }
 
+
+uint16_t get16le(const uint8_t *p) { return p[0] | (p[1]<<8); }
+uint32_t get32le(const uint8_t *p) { return get16le(p) | (get16le(p+2)<<16); }
+uint64_t get64le(const uint8_t *p) { return get32le(p) | (uint64_t(get32le(p+4))<<32); }
+
 // ida5.40 has the idc bytecode dispatcher table at ida.wll : 100D5703
 void disassemble(std::ostream&os, const uint8_t *body, int len)
 {
     for (int i=0 ; i<len ; i++)
     {
-        os << boost::format("%08lx %04x  %02x")
-            % ((int)body+i)
+        os << boost::format("%p %04x  %02x")
+            % (void*)(body+i)
             % i
             % ((int)body[i]);
 
@@ -816,7 +913,7 @@ void funcbody(std::ostream&os, const char *name)
     int nargs=0;
     size_t bodylen=0;
 
-#if IDP_INTERFACE_VERSION>=70
+#if (IDP_INTERFACE_VERSION>=70) && (IDA_SDK_VERSION<700)
 // get_idc_func_body is only available since version 4.70
     uint8_t *body= get_idc_func_body(name, &nargs, &bodylen);
     if (body)
@@ -836,8 +933,8 @@ std::ostream& operator<<(std::ostream& os, const extfun_t& f)
     funcbody(os, f.name);
 
 #if IDP_INTERFACE_VERSION>70
-    return os << boost::format("fu=%08lx fl=%08lx %s(%s)")
-        % ((int)f.fp)
+    return os << boost::format("fu=%08llx fl=%08lx %s(%s)")
+        % ((uint64_t)f.fptr)
         % f.flags
         % (f.name ? f.name : "(null)")
         % functionargs_string(f.args);
@@ -910,6 +1007,11 @@ typedef struct {
     compiled_func5_t **start;
     uint32_t count;
 } listinfo5_t;
+typedef struct {
+    compiled_func6_t **start;
+    uint64_t count;
+} listinfo6_t;
+
 
 
 
@@ -919,9 +1021,9 @@ void dump_idc_funcs1(std::ostream& os, listinfo1_t *flist)
     g_flist1= flist->start;
     g_end1= flist->end;
     for (compiled_func1_t *f= g_flist1 ; f<g_end1 ; f++) {
-        os << boost::format("body: %08lx-%08lx: %s(%d)\n")
-            % ((int)f->body)
-            % ((int)f->end_body)
+        os << boost::format("body: %08llx-%08llx: %s(%d)\n")
+            % ((uint64_t)f->body)
+            % ((uint64_t)f->end_body)
             % f->function_name
             % ((int)f->nrparams);
         disassemble(os, f->body, f->end_body-f->body);
@@ -933,9 +1035,9 @@ void dump_idc_funcs2(std::ostream& os, listinfo2_t *flist)
     g_flist2= flist->start;
     g_end2= flist->start+flist->count;
     for (compiled_func2_t *f= g_flist2 ; f<g_end2 ; f++) {
-        os << boost::format("body: %08lx-%08lx: %s(%d)\n")
-            % ((int)f->body)
-            % (((int)f->body)+f->bodysize)
+        os << boost::format("body: %08llx-%08llx: %s(%d)\n")
+            % ((uint64_t)f->body)
+            % (((uint64_t)f->body)+f->bodysize)
             % f->function_name
             % ((int)f->nrparams);
         disassemble(os, f->body, f->bodysize);
@@ -946,9 +1048,9 @@ void dump_idc_funcs3(std::ostream& os, listinfo3_t *flist)
     g_flist3= flist->start;
     g_end3= flist->start+flist->count;
     for (compiled_func3_t *f= g_flist3 ; f<g_end3 ; f++) {
-        os << boost::format("body: %08lx-%08lx: %s(%d)\n")
-            % ((int)f->body)
-            % (((int)f->body)+f->bodysize)
+        os << boost::format("body: %08llx-%08llx: %s(%d)\n")
+            % ((uint64_t)f->body)
+            % (((uint64_t)f->body)+f->bodysize)
             % f->function_name
             % ((int)f->nrparams);
         disassemble(os, f->body, f->bodysize);
@@ -959,9 +1061,9 @@ void dump_idc_funcs4(std::ostream& os, listinfo4_t *flist)
     g_flist4= flist->start;
     g_end4= flist->start+flist->count;
     for (compiled_func4_t *f= g_flist4 ; f<g_end4 ; f++) {
-        os << boost::format("body: %08lx-%08lx: rec=%p  %s(%d)\n")
-            % ((int)f->body)
-            % (((int)f->body)+f->bodysize)
+        os << boost::format("body: %08llx-%08llx: rec=%p  %s(%d)\n")
+            % ((uint64_t)f->body)
+            % (((uint64_t)f->body)+f->bodysize)
             % f
             % f->function_name
             % ((int)f->nrparams);
@@ -978,9 +1080,28 @@ void dump_idc_funcs5(std::ostream& os, listinfo5_t *flist)
     g_flist5= flist->start;
     for (unsigned i=0 ; i<flist->count ; i++) {
         compiled_func5_t *f= flist->start[i];
-        os << boost::format("body: %08lx-%08lx: rec=%p  %s(%d)\n")
-            % ((int)f->body)
-            % (((int)f->body)+f->bodysize)
+        os << boost::format("body: %08llx-%08llx: rec=%p  %s(%d)\n")
+            % ((uint64_t)f->body)
+            % (((uint64_t)f->body)+f->bodysize)
+            % f
+            % f->function_name
+            % ((int)f->nrparams);
+        if (f->body) {
+            disassemble(os, f->body, f->ofs_lastinsn);
+            os << "extra: ";
+            os << hexdump(f->body+f->ofs_lastinsn, f->bodysize-f->ofs_lastinsn);
+            os << "\n";
+        }
+    }
+}
+void dump_idc_funcs6(std::ostream& os, listinfo6_t *flist)
+{
+    g_flist6= flist->start;
+    for (unsigned i=0 ; i<flist->count ; i++) {
+        compiled_func6_t *f= flist->start[i];
+        os << boost::format("body: %08llx-%08llx: rec=%p  %s(%d)\n")
+            % ((uint64_t)f->body)
+            % (((uint64_t)f->body)+f->bodysize)
             % f
             % f->function_name
             % ((int)f->nrparams);
@@ -1008,9 +1129,9 @@ void dump_idc_funcs(std::ostream& os)
 {
     std::string kernelversion = getkernelversion();
     
-    uint32_t listptr= 0;
+    uint64_t listptr= 0;
     g_type=0;
-    switch((uint32_t)&IDCFuncs) {
+    switch((uint64_t)&IDCFuncs) {
 
 //=========== windows versions of ida ====================
 //case 0x100b76b8: flist=(listinfo_t*) 0; break;
@@ -1027,7 +1148,7 @@ case 0x100f9f44: g_type=1; listptr= 0x1012a860; break; //ida5.10       - RootNod
 //case 0x100f9a44: g_type=1; listptr= 0; break;
 case 0x1010837a: g_type=2; listptr= 0x10136ef0; break; //ida5.20
 case 0x10103116: g_type=2; listptr= 0x101310C0;        //ida5.20 update
-                 if (*(uint32_t*)listptr==0) listptr= 0x101310AC; // ??
+                 if (*(uint64_t*)listptr==0) listptr= 0x101310AC; // ??
                  break;
 case 0x1010a63e: g_type=2; listptr= 0x10137224; break; // ??
 case 0x100ff4d3: g_type=3; listptr= 0x1012bfa0; break; // ida5.30      - RootNode+0x00f4   ida530/ida.wll
@@ -1065,14 +1186,20 @@ case 0x006824a0: g_type=5; listptr= 0x006883a0; break; // ida 6.9
 case 0x0068b4a0: g_type=5; listptr= 0x006913c0; break; // ida 6.9.5
 case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
     }
-    uint32_t lowbits_IDCFunc = ((uint32_t)&IDCFuncs)&0xFFF;
+    uint32_t lowbits_IDCFunc = ((uint64_t)&IDCFuncs)&0xFFF;
     if (kernelversion == "6.95" && lowbits_IDCFunc == 0x4A0) {
         g_type = 5;
-        listptr = 0x5F20 + ((uint32_t)&IDCFuncs);
+        listptr = 0x5F20 + ((uint64_t)&IDCFuncs);
+    }
+    else if (kernelversion == "7.00" /*&& lowbits_IDCFunc == 0xdb8*/) {
+        g_type = 6;
+        listptr = 0x1E8 + ((uint64_t)&root_node);
+
+        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
 
     if (listptr==0) {
-        msg("IDCFuncs unknown: %p\n", &IDCFuncs);
+        msg("IDCFuncs unknown: %p, kernelversion=%s\n", &IDCFuncs, kernelversion.c_str() );
         return;
     }
     if (g_type==1)
@@ -1085,6 +1212,8 @@ case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
         dump_idc_funcs4(os, (listinfo4_t *)listptr);
     else if (g_type==5)
         dump_idc_funcs5(os, (listinfo5_t *)listptr);
+    else if (g_type==6)
+        dump_idc_funcs6(os, (listinfo6_t *)listptr);
 }
 
 
@@ -1095,7 +1224,7 @@ void dump_db(int flags)
 
     if (flags&1) {
         os << "------------rootnode-----------\n";
-        os << RootNode;
+        os << root_node;
 
         os << "------------node.start.next-----------\n";
         netnode n; 
@@ -1105,6 +1234,14 @@ void dump_db(int flags)
             } while (n.next());
     }
     else {
+#if IDA_SDK_VERSION == 700
+        funcset_t *pfuncs = find_idcfuncs();
+        if (!pfuncs) {
+            os << "--- could not find idcfuncs\n";
+            return;
+        }
+        IDCFuncs = *pfuncs;
+#endif
         os << "------------idcfuncs-----------\n";
         os << IDCFuncs;
 
