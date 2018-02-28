@@ -60,11 +60,14 @@ funcset_t *find_idcfuncs()
     }
 
     uint32_t *pd = (uint32_t *)(p+9);
-
+#ifdef IDA70BETA3
     typedef size_t (*ea2str_fn)(ea_t ea, char *buf, size_t bufsize);
+#else
+    typedef size_t (*ea2str_fn)(char *buf, size_t bufsize, ea_t ea);
+#endif
 
     msg("fnlist = %llx, ea2str = %llx\n", addr_fnlist, (uint64_t)ea2str_fn(ea2str));
-    msg("found idcfuncs @%llx: %lld,  %llx, %llx, %llx, %llx,  %lld,  %llx, %llx, %llx, %d, %d, %d, %d\n",
+    msg("found idcfuncs @%p: %lld,  %llx, %llx, %llx, %llx,  %lld,  %llx, %llx, %llx, %d, %d, %d, %d\n",
             p,  p[0],  p[1], p[2], p[3], p[4],  p[5],  p[6], p[7], p[8],  pd[0], pd[1], pd[2], pd[3]);
     return (funcset_t*)p;
 }
@@ -336,7 +339,7 @@ std::ostream& operator<<(std::ostream& os, netnode& node)
         os << "no value\n";
     }
     for (int tag= 0 ; tag < 0x100 ; tag++)
-        for (nodeidx_t idx= node.sup1st(tag) ; idx!=BADNODE ; idx= node.supnxt(idx, tag))
+        for (nodeidx_t idx= node.supfirst(tag) ; idx!=BADNODE ; idx= node.supnext(idx, tag))
         {
             os << boost::format("[%s, %08lx] : alt=%08lx ch=%02x sup=%s\n") 
                     % tagstr(tag) % idx
@@ -346,7 +349,7 @@ std::ostream& operator<<(std::ostream& os, netnode& node)
         }
 /*
     for (int tag=0 ; tag<0x100 ; tag++)
-        for (char* idx= node.hash1st(tag) ; idx ; idx=node.hashnxt(idx, tag))
+        for (char* idx= node.hashfirst(tag) ; idx ; idx=node.hashnext(idx, tag))
             os << boost::format("hashval(%s, %s) : %s\n")
                     % tagstr(tag) % idx
                     % (node.hashval(idx, tag)?node.hashval(idx, tag):"(null)");
@@ -377,7 +380,7 @@ std::ostream& operator<<(std::ostream& os, netnode& node)
             % ascdump((unsigned char*)buf, node.valobj(buf, MAXSPECSIZE));
 
     for (int tag= 0 ; tag < 0x100 ; tag++)
-        for (nodeidx_t idx= node.sup1st(tag) ; idx!=BADNODE ; idx= node.supnxt(idx, tag))
+        for (nodeidx_t idx= node.supfirst(tag) ; idx!=BADNODE ; idx= node.supnext(idx, tag))
         {
             os << boost::format("[%s, %08lx] : %s\n") 
                     % tagstr(tag) % idx
@@ -391,7 +394,7 @@ std::ostream& operator<<(std::ostream& os, netnode& node)
         int hs[2];  hs[0]=0; hs[1]=0;
 		int i=0;
         memset(idx, 0, sizeof(idx));
-		for (hs[i]= node.hash1st(idx[i], 1024, tag) ; hs[i]>0 ; hs[i]=node.hashnxt(idx[i^1], idx[i], 1024, tag)) {
+		for (hs[i]= node.hashfirst(idx[i], 1024, tag) ; hs[i]>0 ; hs[i]=node.hashnext(idx[i^1], idx[i], 1024, tag)) {
             if (hs[0]==hs[1] && memcmp(idx[0], idx[1], hs[0])==0)
                 break;
             i ^= 1;
