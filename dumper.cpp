@@ -24,7 +24,7 @@
 
 #include "expr.hpp"  // for IDCFuncs
 
-#if IDA_SDK_VERSION == 700
+#if IDA_SDK_VERSION >= 700
 typedef ext_idcfunc_t extfun_t;
 
 struct funcset_t {
@@ -1200,6 +1200,13 @@ case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
 
         msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
+    else if (kernelversion == "7.1" /*&& IDCFunc == 0x100729f00, ea2str = 1004e1020 */) {
+        g_type = 6;
+        listptr = 0x1E8 + ((uint64_t)&root_node);
+
+        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
+    }
+
 
     if (listptr==0) {
         msg("IDCFuncs unknown: %p, kernelversion=%s\n", &IDCFuncs, kernelversion.c_str() );
@@ -1237,7 +1244,7 @@ void dump_db(int flags)
             } while (n.next());
     }
     else {
-#if IDA_SDK_VERSION == 700
+#if IDA_SDK_VERSION >= 700
         funcset_t *pfuncs = find_idcfuncs();
         if (!pfuncs) {
             os << "--- could not find idcfuncs\n";
