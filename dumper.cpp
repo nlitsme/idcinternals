@@ -895,12 +895,12 @@ void disassemble(std::ostream&os, const uint8_t *body, int len)
             case 0xce: os << boost::format("          ; cv to integer\n"); break;
             case 0xcf: os << boost::format("          ; cv to string\n"); break;
             case 0xd0: os << boost::format("          ; cv to float\n"); break;
-            case 0xd1: 
-                if (i >= len-12) { os << boost::format("\nERROR: unexpected end of code(i=%d, len=%d, opc=%02x)\n") %i %len %((int)body[i]); break; }
-                os << boost::format(" .......... ; push float %s\n")
-                    % hexdump(body+i+1, 12);
-                i+=12;
-                break;
+            case 0xd1: os << boost::format("          ; ?????\n"); break;
+//              if (i >= len-12) { os << boost::format("\nERROR: unexpected end of code(i=%d, len=%d, opc=%02x)\n") %i %len %((int)body[i]); break; }
+//              os << boost::format(" .......... ; push float %s\n")
+//                  % hexdump(body+i+1, 12);
+//              i+=12;
+
             // 0xd2 is unused
             case 0xd3: os << boost::format(" %09llx; push #%016llx\n") % qword % qword; i+=8; break;
             case 0xd4: os << boost::format(" %02x       ; push global %02x\n") % byte % byte; i+=1; break;
@@ -1264,17 +1264,22 @@ case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
 
         msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
-    else if (kernelversion == "7.2" /*&& IDCFunc == 0x100729f00, ea2str = 1004e1020 */) {
+    else if (kernelversion == "7.2" ) {
         g_type = 7;
         listptr = -0x88 + ((uint64_t)&root_node);
 
         msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
-
+    else if (kernelversion == "7.4" ) {
+        g_type = 7;
+        listptr = -0x88 + ((uint64_t)&root_node);
+        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), -0x88 + ((uint64_t)&root_node));
+    }
 
 
     if (listptr==0) {
         msg("IDCFuncs unknown: %p, kernelversion=%s\n", &IDCFuncs, kernelversion.c_str() );
+        msg("  idcfuncs.qnty = %p, dummy = %p, rootnode = %p\n", &IDCFuncs.qnty, &dummyfuncs, &root_node);
         return;
     }
     if (g_type==1)
