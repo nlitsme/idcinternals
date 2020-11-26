@@ -16,7 +16,7 @@ endif
 
 IDAVER=7
 
-CFLAGS+=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include
+CFLAGS+=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include -I /usr/local/include
 CFLAGS+=-DNO_OBSOLETE_FUNCS 
 CFLAGS+=-Wno-nullability-completeness
 
