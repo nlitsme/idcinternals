@@ -20,6 +20,7 @@
 #include "pro.h"     // for basic types.
 #include "ida.hpp"   // for ida constants and types.
 #include "idp.hpp"   // for interface version
+#include "dbg.hpp"   // for 'dbg' global variable
 #include "netnode.hpp"  // for RootNode
 
 #include "expr.hpp"  // for IDCFuncs
@@ -34,7 +35,7 @@ struct funcset_t {
 funcset_t *find_idcfuncs()
 {
     uint64_t *p = (uint64_t*)&callui;
-    uint64_t *pend = (uint64_t*)&ph;
+    uint64_t *pend = (uint64_t*)&dbg;
     p++;
     while (p<pend && *p==0)
         p++;
@@ -947,10 +948,10 @@ void disassemble(std::ostream&os, const uint8_t *body, int len)
 }
 void funcbody(std::ostream&os, const char *name)
 {
-    int nargs=0;
-    size_t bodylen=0;
 
 #if (IDP_INTERFACE_VERSION>=70) && (IDA_SDK_VERSION<700)
+    int nargs=0;
+    size_t bodylen=0;
 // get_idc_func_body is only available since version 4.70
     uint8_t *body= get_idc_func_body(name, &nargs, &bodylen);
     if (body)

@@ -35,7 +35,43 @@
 //      You may or may not check any other conditions to decide what you do:
 //      whether you agree to work with the database or not.
 //
-int idaapi init(void)
+//--------------------------------------------------------------------------
+//      Terminate.
+//      Usually this callback is empty.
+//      The plugin should unhook from the notification lists if
+//      hook_to_notification_point() was used.
+//
+//      IDA will call this function when the user asks to exit.
+//      This function won't be called in the case of emergency exits.
+struct DumperPlugin : plugmod_t {
+  void idaapi term(void)
+  {
+    //unhook_from_notification_point(HT_UI, sample_callback);
+    //set_user_defined_prefix(0, NULL);
+  }
+
+  //--------------------------------------------------------------------------
+  //
+  //      The plugin method
+  //
+  //      This is the main function of plugin.
+  //
+  //      It will be called when the user selects the plugin.
+  //
+  //              arg - the input argument, it can be specified in
+  //                    plugins.cfg file. The default is zero.
+  //
+  //
+
+  bool idaapi run(size_t arg) override // ida7: bool(size_t), ida6: void(int)
+  {
+    dump_db(arg);
+    return true;
+  }
+
+};
+
+plugmod_t *idaapi init(void)
 {
 //  if ( inf.filetype == f_ELF ) return PLUGIN_SKIP;
 
@@ -45,42 +81,9 @@ int idaapi init(void)
 // Please uncomment the following line to see how the user-defined prefix works
 //  set_user_defined_prefix(prefix_width, get_user_defined_prefix);
 
-  return PLUGIN_KEEP;
+  return new DumperPlugin();
 }
 
-//--------------------------------------------------------------------------
-//      Terminate.
-//      Usually this callback is empty.
-//      The plugin should unhook from the notification lists if
-//      hook_to_notification_point() was used.
-//
-//      IDA will call this function when the user asks to exit.
-//      This function won't be called in the case of emergency exits.
-
-void idaapi term(void)
-{
-  //unhook_from_notification_point(HT_UI, sample_callback);
-  //set_user_defined_prefix(0, NULL);
-}
-
-//--------------------------------------------------------------------------
-//
-//      The plugin method
-//
-//      This is the main function of plugin.
-//
-//      It will be called when the user selects the plugin.
-//
-//              arg - the input argument, it can be specified in
-//                    plugins.cfg file. The default is zero.
-//
-//
-
-bool idaapi run(size_t arg)  // ida7: bool(size_t), ida6: void(int)
-{
-  dump_db(arg);
-  return true;
-}
 
 //--------------------------------------------------------------------------
 char comment[] = "dumps the ida database";
@@ -112,12 +115,12 @@ char wanted_hotkey[] = "Alt-9";
 plugin_t PLUGIN =
 {
   IDP_INTERFACE_VERSION,
-  0,                    // plugin flags
+  PLUGIN_MULTI,                    // plugin flags
   init,                 // initialize
 
-  term,                 // terminate. this pointer may be NULL.
+  NULL,                 // terminate. this pointer may be NULL.
 
-  run,                  // invoke plugin
+  NULL,                 // invoke plugin
 
   comment,              // long comment about the plugin
                         // it could appear in the status line
