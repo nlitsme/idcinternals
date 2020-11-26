@@ -1,6 +1,6 @@
 -include ../idacfg.mk
 
-ifneq ($(wildcard $(SystemRoot)/explorer.exe),)
+ifneq ($(wildcard $(SystemRoot)/explorer.exe $(SYSTEMROOT)/explorer.exe),)
 OSTYPE=windows
 endif
 ifneq ($(wildcard /System/Library/Extensions),)
