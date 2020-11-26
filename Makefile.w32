@@ -5,10 +5,8 @@
 # web: http://www.xs4all.nl/~itsme/projects/disassemblers/ida/idp-Makefile
 #
 
-idasdk=c:/local/ida620/idasdk
-vc=c:/Program Files/Microsoft Visual Studio 8/VC
-CC=$(vc)/bin/cl.exe
-LD=$(vc)/bin/link.exe
+CXX=cl.exe
+LD=link.exe
 
 .SUFFIXES:
 .SUFFIXES: .cpp .obj .plw
@@ -52,7 +50,7 @@ endif
 # msvc 13.10 does support it.
 #
 %.obj: %.cpp
-	@"$(CC)" -c -W4 $(NOWARN) $(COPTS) $(CINCS) $(CDEFS) -Fo$@ $<
+	@"$(CXX)" -c -W4 $(NOWARN) $(COPTS) $(CINCS) $(CDEFS) -Fo$@ $<
 
 all: dbdump.plw
 

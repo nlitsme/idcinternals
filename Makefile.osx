@@ -1,8 +1,24 @@
 -include ../idacfg.mk
+
+ifneq ($(wildcard $(SystemRoot)/explorer.exe),)
+OSTYPE=windows
+endif
+ifneq ($(wildcard /System/Library/Extensions),)
+OSTYPE=darwin
+endif
+ifneq ($(wildcard /sbin/bsdlabel),)
+OSTYPE=freebsd
+endif
+ifneq ($(wildcard /sbin/modprobe),)
+OSTYPE=linux
+endif
+
+
 IDAVER=7
 
-CFLAGS=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include
+CFLAGS+=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include
 CFLAGS+=-DNO_OBSOLETE_FUNCS 
+CFLAGS+=-Wno-nullability-completeness
 
 ifeq ($(IDAVER),6)
 PMCEXT=.pmc
@@ -18,17 +34,17 @@ CFLAGS+=$(if $(D),-O0 -g,-O3)
 CFLAGS+=-std=c++17
 
 %.o32: %.cpp
-	g++ $(CFLAGS) -c $(ARCHFLAGS) -Wall -o$@ $^
+	$(CXX) $(CFLAGS) -c $(ARCHFLAGS) -Wall -o$@ $^
 %.o64: %.cpp
-	g++ $(CFLAGS) -c $(ARCHFLAGS) -Wall -o$@ $^  -D__EA64__=1
+	$(CXX) $(CFLAGS) -c $(ARCHFLAGS) -Wall -o$@ $^  -D__EA64__=1
 
 all: dbdump$(PMCEXT) dbdump64$(PMCEXT)
 
 dbdump$(PMCEXT): pluginreg.o32 dumper.o32
-	g++ -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida.dylib"
+	$(CXX) -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida.dylib"
 
 dbdump64$(PMCEXT): pluginreg.o64 dumper.o64
-	g++ -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida64.dylib"
+	$(CXX) -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida64.dylib"
 
 install:
 	cp dbdump$(PMCEXT) dbdump64$(PMCEXT) "$(idabin)/plugins"
