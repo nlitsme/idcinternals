@@ -36,12 +36,11 @@ CINCS=-I $(idasdk)/include -I c:/local/boost_1_74_0
 CINCS+=-I "$(vc)/include" -I "$(vc)/platformsdk/include"
 COPTS=-EHsc -GR -Gz -nologo
 
-LDLIBS=-libpath:$(firstword $(wildcard $(idasdk)/libvc.w32 $(idasdk)/lib/vc.w32))  ida.lib
-LDLIBS+=-libpath:"$(vc)/lib" -libpath:"$(vc)/platformsdk/lib"
+LDLIBS=-libpath:$(idasdk)/lib/x64_win_vc_32  ida.lib
 LDFLAGS=-nologo -dll -export:PLUGIN
 DEBUG=yes
 ifeq ($(DEBUG),yes)
-LDFLAGS+=/debug
+LDFLAGS+=-debug
 COPTS+=-Zi
 else
 COPTS+=-O2

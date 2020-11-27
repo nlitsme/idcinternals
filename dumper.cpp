@@ -132,12 +132,23 @@ typedef struct {
     uint32_t namelen;
     uint32_t name_alloced;
 } srcfile4_t;
-typedef struct __attribute__((packed)) {
+#ifdef _WIN32
+#define PACKED
+#pragma pack(push,1)
+#else
+#define PACKED __attribute__((packed))
+#endif
+typedef struct PACKED {
     uint32_t unk0;
     char *filename;
     uint64_t namelen;
     uint64_t name_alloced;
 } srcfile6_t;
+#ifdef _WIN32
+#pragma pack(pop)
+#else
+#define PACKED __attribute__((packed))
+#endif
 
 typedef struct {
     uint32_t ofs;
