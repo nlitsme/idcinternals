@@ -2,21 +2,35 @@
 
 ifneq ($(wildcard $(SystemRoot)/explorer.exe $(SYSTEMROOT)/explorer.exe),)
 OSTYPE=windows
+CFLAGS+=-D__NT__=1
+
+IDA64LIB=$(idasdk)/lib/x64_win_vc_64/ida.lib
+IDA32LIB=$(idasdk)/lib/x64_win_vc_32/ida.lib
+L=.dll
+DLLFLAGS=/dll
 endif
 ifneq ($(wildcard /System/Library/Extensions),)
 OSTYPE=darwin
-endif
-ifneq ($(wildcard /sbin/bsdlabel),)
-OSTYPE=freebsd
+CFLAGS+=-D__MAC__=1
+
+IDA64LIB=$(idasdk)/lib/x64_mac_clang_64/libida64.dylib
+IDA32LIB=$(idasdk)/lib/x64_mac_clang_32/libida.dylib
+L=.dylib
+DLLFLAGS=-dynamiclib
 endif
 ifneq ($(wildcard /sbin/modprobe),)
 OSTYPE=linux
+CFLAGS+=-D__LINUX__=1
+
+IDA64LIB=$(idasdk)/lib/x64_linux_gcc_64/libida64.so
+IDA32LIB=$(idasdk)/lib/x64_linux_gcc_32/libida.so
+L=.so
+DLLFLAGS=--shared
 endif
 
-
 IDAVER=7
-
-CFLAGS+=-D__MAC__ -D__IDP__ -I $(idasdk)/include -I /opt/local/include -I /usr/local/include
+CFLAGS+=-fPIC
+CFLAGS+=-D__IDP__ -I $(idasdk)/include -I /opt/local/include -I /usr/local/include
 CFLAGS+=-DNO_OBSOLETE_FUNCS 
 CFLAGS+=-Wno-nullability-completeness
 
@@ -26,7 +40,7 @@ ARCHFLAGS=-m32
 endif
 
 ifeq ($(IDAVER),7)
-PMCEXT=.dylib
+PMCEXT=$(L)
 ARCHFLAGS=-m64 -D__X64__
 endif
 
@@ -41,10 +55,10 @@ CFLAGS+=-std=c++17
 all: dbdump$(PMCEXT) dbdump64$(PMCEXT)
 
 dbdump$(PMCEXT): pluginreg.o32 dumper.o32
-	$(CXX) -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida.dylib"
+	$(CXX) $(DLLFLAGS) $(ARCHFLAGS) -o $@ $^ $(IDA32LIB)
 
 dbdump64$(PMCEXT): pluginreg.o64 dumper.o64
-	$(CXX) -dynamiclib $(ARCHFLAGS) -o $@ $^  "$(idabin)/libida64.dylib"
+	$(CXX) $(DLLFLAGS) $(ARCHFLAGS) -o $@ $^ $(IDA64LIB)
 
 install:
 	cp dbdump$(PMCEXT) dbdump64$(PMCEXT) "$(idabin)/plugins"
