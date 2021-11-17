@@ -132,6 +132,7 @@ typedef struct {
     uint32_t namelen;
     uint32_t name_alloced;
 } srcfile4_t;
+#undef PACKED
 #ifdef _WIN32
 #define PACKED
 #pragma pack(push,1)
@@ -144,6 +145,7 @@ typedef struct PACKED {
     uint64_t namelen;
     uint64_t name_alloced;
 } srcfile6_t;
+#undef PACKED
 #ifdef _WIN32
 #pragma pack(pop)
 #else
@@ -1169,6 +1171,7 @@ void dump_idc_funcs6(std::ostream& os, listinfo6_t *flist)
 }
 void dump_idc_funcs7(std::ostream& os, listinfo7_t *flist)
 {
+	msg("fn7: plist=%p, list: %p, count=%d\n", flist, flist->start, flist->count);
     g_flist7= flist->start;
     for (unsigned i=0 ; i<flist->count ; i++) {
         compiled_func7_t *f= flist->start[i];
@@ -1268,25 +1271,32 @@ case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
         g_type = 6;
         listptr = 0x1E8 + ((uint64_t)&root_node);
 
-        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
+        msg("v70: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
     else if (kernelversion == "7.1" /*&& IDCFunc == 0x100729f00, ea2str = 1004e1020 */) {
         g_type = 6;
         listptr = 0x1E8 + ((uint64_t)&root_node);
 
-        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
+        msg("v71: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
     else if (kernelversion == "7.2" ) {
         g_type = 7;
         listptr = -0x88 + ((uint64_t)&root_node);
 
-        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
+        msg("v72: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
     else if (kernelversion == "7.4" ) {
         g_type = 7;
         listptr = -0x88 + ((uint64_t)&root_node);
-        msg("idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), -0x88 + ((uint64_t)&root_node));
+        msg("v74: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
+    else if (kernelversion == "7.6" ) {
+        g_type = 8;
+
+        listptr = -0x3C40 + ((uint64_t)&root_node);
+        msg("v76: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
+    }
+
 
 
     if (listptr==0) {
@@ -1308,6 +1318,10 @@ case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
         dump_idc_funcs6(os, (listinfo6_t *)listptr);
     else if (g_type==7)
         dump_idc_funcs7(os, (listinfo7_t *)listptr);
+    else if (g_type==8)
+        dump_idc_funcs7(os, *(listinfo7_t **)listptr);
+	else
+		msg("unk type: %d\n", g_type);
 }
 
 
