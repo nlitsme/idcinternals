@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(dbdump)
 set(CMAKE_CXX_STANDARD 17)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_find")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(LINUX TRUE)
@@ -31,40 +31,23 @@ if(MSVC)
 endif()
 
 if (WIN32)
-    add_definitions(NOMINMAX NOGDI)
+    add_definitions(-DNOMINMAX -DNOGDI)
 endif()
 
-find_path(IDASDK_PATH NAMES include/netnode.hpp PATHS $ENV{IDASDK} $ENV{HOME}/src/idasdk76)
-if (IDASDK_PATH STREQUAL IDASDK_PATH-NOTFOUND)
-    message(FATAL_ERROR "IDASDK not found.")
-endif()
-
-add_library(idasdk INTERFACE)
-target_include_directories(idasdk INTERFACE ${IDASDK_PATH}/include)
-target_compile_definitions(idasdk INTERFACE MAXSTR=1024)
-if (LINUX)
-    target_compile_definitions(idasdk INTERFACE __LINUX__=1)
-    target_link_libraries(idasdk INTERFACE ${IDASDK_PATH}/lib/x64_linux_gcc_64/libida64.so)
-elseif (DARWIN)
-    target_compile_definitions(idasdk INTERFACE __MAC__=1)
-    target_link_libraries(idasdk INTERFACE ${IDASDK_PATH}/lib/x64_mac_clang_64/libida64.dylib)
-elseif (WIN32)
-    target_compile_definitions(idasdk INTERFACE __NT__=1)
-    target_link_libraries(idasdk INTERFACE ${IDASDK_PATH}/lib/x64_win_vc_64/ida.lib)
-endif()
-# this prevents idasdk:fpro.h to redefine all stdio stuff to 'dont_use_XXX'
-target_compile_definitions(idasdk INTERFACE USE_STANDARD_FILE_FUNCTIONS)
-# this prevents idasdk:pro.h to redefine all string functions to 'dont_use_XXX'
-target_compile_definitions(idasdk INTERFACE USE_DANGEROUS_FUNCTIONS)
-# disallow obsolete sdk functions.
-target_compile_definitions(idasdk INTERFACE NO_OBSOLETE_FUNCS)
-
-
-
+find_package(idasdk REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
 
 
 add_library(dbdump MODULE pluginreg.cpp dumper.cpp)
 target_compile_definitions(dbdump PUBLIC __IDP__)
 target_compile_definitions(dbdump PUBLIC __DEFINE_ROOT_NODE__)
-target_link_libraries(dbdump idasdk)
+target_link_libraries(dbdump PUBLIC idasdk32 Boost::system Boost::headers)
 set_target_properties(dbdump PROPERTIES PREFIX "")
+
+
+add_library(dbdump64 MODULE pluginreg.cpp dumper.cpp)
+target_compile_definitions(dbdump64 PUBLIC __IDP__)
+target_compile_definitions(dbdump64 PUBLIC __DEFINE_ROOT_NODE__)
+target_link_libraries(dbdump64 PUBLIC idasdk64 Boost::system Boost::headers)
+set_target_properties(dbdump64 PROPERTIES PREFIX "")
+
