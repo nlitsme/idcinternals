@@ -15,6 +15,6 @@ clean:
 
 -include ../idacfg.mk
 install: 
-	cp build/dbdump.so "$(idabin)/plugins/"
+	cp build/dbdump.so build/dbdump64.so "$(idabin)/plugins/"
 
 

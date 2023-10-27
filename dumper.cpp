@@ -1296,6 +1296,13 @@ case 0x007b54a0: g_type=5; listptr= 0x007BB3C0; break; // ida 6.9.5
         listptr = -0x3C40 + ((uint64_t)&root_node);
         msg("v76: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
     }
+    else if (kernelversion == "8.3" ) {
+        g_type = 8;
+
+        listptr = -0x25c8 + ((uint64_t)&root_node);
+        msg("v83: idcfuncs=%llx -> list=%llx\n", ((uint64_t)&IDCFuncs), listptr);
+    }
+
 
 
 

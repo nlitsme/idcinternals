@@ -6,6 +6,7 @@
  * $Id$
  */
 #include <string>
+#include <cstdint>
 
 #include <ida.hpp>
 #include <idp.hpp>
